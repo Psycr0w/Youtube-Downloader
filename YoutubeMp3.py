@@ -1,6 +1,8 @@
 ﻿import os
 import shutil
 from pytube import YouTube
+from pytube import Playlist
+import re
 
 if os.name == 'nt':
     import ctypes
@@ -46,14 +48,22 @@ else:
         home = os.path.expanduser("~")
         return os.path.join(home, "Downloads")
 
-URL = str(input("URL:- "))
-yt = YouTube(URL)
-video = yt.streams.filter(only_audio=True).first()
-downloaded_file = video.download()
-base, ext = os.path.splitext(downloaded_file)
-new_file = base + '.mp3'
-new_file_name = new_file.split("\\")[-1]
-os.rename(downloaded_file, new_file)
-shutil.move(new_file, get_download_folder() + '\\' + new_file_name)
-print(new_file_name)
-print("Done")
+URL= str(input("URL:- "))
+def download_mp3(uri):
+    yt = YouTube(uri)
+    video = yt.streams.filter(only_audio=True).first()
+    downloaded_file = video.download()
+    base, ext = os.path.splitext(downloaded_file)
+    new_file = base + '.mp3'
+    new_file_name = new_file.split("\\")[-1]
+    os.rename(downloaded_file, new_file)
+    shutil.move(new_file, os.path.join(get_download_folder(), new_file_name))
+    print(new_file_name)
+
+if re.match(r'.*&?\??list=.*', URL):
+    for item in Playlist(URL).video_urls:
+        download_mp3(item)
+    print("Done")
+else:
+    download_mp3(URL)
+    print("Done")
