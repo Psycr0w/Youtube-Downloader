@@ -1,10 +1,9 @@
 ﻿import os
-import shutil
-from pytube import YouTube
-from pytube import Playlist
+import yt_dlp
+from datetime import datetime
 import re
 
-if os.name == 'nt':
+if os.name == 'nt': # type: ignore
     import ctypes
     from ctypes import windll, wintypes
     from uuid import UUID
@@ -16,15 +15,15 @@ if os.name == 'nt':
             ("Data2", wintypes.WORD),
             ("Data3", wintypes.WORD),
             ("Data4", wintypes.BYTE * 8)
-        ] 
+        ]
 
         def __init__(self, uuidstr):
             uuid = UUID(uuidstr)
             ctypes.Structure.__init__(self)
             self.Data1, self.Data2, self.Data3, \
-                self.Data4[0], self.Data4[1], rest = uuid.fields
+            self.Data4[0], self.Data4[1], rest = uuid.fields
             for i in range(2, 8):
-                self.Data4[i] = rest>>(8-i-1)*8 & 0xff
+                self.Data4[i] = rest >> (8 - i - 1) * 8 & 0xff
 
     SHGetKnownFolderPath = windll.shell32.SHGetKnownFolderPath
     SHGetKnownFolderPath.argtypes = [
@@ -48,22 +47,36 @@ else:
         home = os.path.expanduser("~")
         return os.path.join(home, "Downloads")
 
-URL= str(input("URL:- "))
+URL = str(input("URL: "))
+
 
 def download_mp3(uri):
-    yt = YouTube(uri)
-    video = yt.streams.filter(only_audio=True).first()
-    downloaded_file = video.download()
-    base, ext = os.path.splitext(downloaded_file)
-    new_file = base + '.mp3'
-    new_file_name = new_file.split("\\")[-1]
-    os.rename(downloaded_file, new_file)
-    shutil.move(new_file, os.path.join(get_download_folder(), new_file_name))
-    print(new_file_name)
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'outtmpl': os.path.join(get_download_folder(), '%(title)s.%(ext)s'),
+        'clean_infojson': False
+    }
+
+    ydl = yt_dlp.YoutubeDL(ydl_opts)
+    info = ydl.extract_info(uri, download=False)
+    file_path = ydl.prepare_filename(info).replace(".webm",".mp3")
+    ydl.download([uri])
+
+    # Update LastWriteTime of the file
+    current_time = datetime.now()
+    os.utime(file_path, (os.path.getatime(file_path), int(current_time.timestamp())))
+
+
 
 if re.match(r'.*&?\??list=.*', URL):
-    for item in Playlist(URL).video_urls:
-        download_mp3(item)
+    playlist = yt_dlp.YoutubeDL().extract_info(URL, download=False)
+    for item in playlist['entries']:
+        download_mp3(item['webpage_url'])
     print("Done")
 else:
     download_mp3(URL)
